@@ -15,6 +15,7 @@ LOG_FILE="/var/log/pulse_update.log" # Log file for cron updates
 SCRIPT_ABS_PATH="" # Store absolute path of the script here
 REPO_URL="https://github.com/rcourtman/Pulse.git"
 SCRIPT_RAW_URL="https://raw.githubusercontent.com/rcourtman/Pulse/main/scripts/install-pulse.sh"
+CURRENT_SCRIPT_COMMIT_SHA="__SCRIPT_COMMIT_SHA__" # Will be replaced after commit
 
 # --- Flags & Variables ---
 MODE_UPDATE=false # Flag to run in non-interactive update mode
@@ -81,63 +82,97 @@ check_root() {
   fi
 }
 
-# --- Self-Update Function ---
+# --- Self-Update Function (GitHub API + jq) ---
 self_update_check() {
     # Only run check if interactive and script path was found
     if [ ! -t 0 ] || [ "$MODE_UPDATE" = true ] || [ -z "$SCRIPT_ABS_PATH" ]; then
         return 0
     fi
 
-    # ---> Check dependencies *before* attempting update < ---
-    if ! command -v curl &> /dev/null || ! command -v diff &> /dev/null; then
-        # Silently skip check if tools missing
+    # --- Dependencies Check ---
+    if ! command -v curl &> /dev/null; then
+        print_warning "curl command not found, skipping installer self-update check."
         return 0
     fi
-    # ---> END MODIFICATION < ---
+    if ! command -v jq &> /dev/null; then
+        print_warning "jq command not found, skipping installer self-update check."
+        print_warning "Please install jq (e.g., sudo apt-get update && sudo apt-get install jq)"
+        return 0
+    fi
+    # --- END Dependencies Check ---
 
-    print_info "Checking for updates to the installer script itself..."
-    local temp_script="/tmp/${SCRIPT_NAME}.tmp"
+    print_info "Checking for updates to the installer script itself (using GitHub API)..."
 
-    if curl -sL "$SCRIPT_RAW_URL" -o "$temp_script"; then
-        # Compare the downloaded script with the running script
-        if ! diff -q "$SCRIPT_ABS_PATH" "$temp_script" >/dev/null 2>&1; then
-            print_warning "A newer version of the installation script is available."
-            read -p "Do you want to update the installer and re-run? [Y/n]: " update_confirm
-            if [[ ! "$update_confirm" =~ ^[Nn]$ ]]; then # Default Yes
-                print_info "Updating installer script..."
-                # Make the new script executable
+    # --- Get Latest Commit SHA from GitHub API ---
+    local owner="rcourtman"
+    local repo="Pulse"
+    local script_path="scripts/install-pulse.sh"
+    local branch="main"
+    local api_url="https://api.github.com/repos/${owner}/${repo}/commits?path=${script_path}&sha=${branch}&per_page=1"
+    local latest_remote_sha
+
+    # Make the API call, extract SHA with jq
+    latest_remote_sha=$(curl -sL -H "Accept: application/vnd.github.v3+json" "$api_url" | jq -r 'if type=="array" and length > 0 then .[0].sha else empty end')
+    local curl_exit_code=$?
+
+    if [ $curl_exit_code -ne 0 ]; then
+        print_warning "curl command failed when checking GitHub API for updates (Exit code: $curl_exit_code). Skipping self-update check."
+        return 0
+    fi
+
+    if [ -z "$latest_remote_sha" ] || [ "$latest_remote_sha" = "null" ]; then
+        print_warning "Could not determine the latest commit SHA from GitHub API. Skipping self-update check."
+        return 0
+    fi
+    # --- END Get Latest Commit SHA ---
+
+    # --- Compare SHAs ---
+    if [ "$latest_remote_sha" != "$CURRENT_SCRIPT_COMMIT_SHA" ]; then
+        print_warning "A newer version of the installation script (Commit: ${latest_remote_sha:0:7}) is available."
+        read -p "Do you want to update the installer and re-run? [Y/n]: " update_confirm
+        if [[ ! "$update_confirm" =~ ^[Nn]$ ]]; then # Default Yes
+            print_info "Updating installer script..."
+            local temp_script="/tmp/${SCRIPT_NAME}.tmp"
+
+            # Download the latest version from raw URL
+            if ! curl -sL "$SCRIPT_RAW_URL" -o "$temp_script"; then
+                 print_error "Failed to download the latest installer script from $SCRIPT_RAW_URL."
+                 rm -f "$temp_script"
+                 return 1 # Indicate failure
+            fi
+
+            # Optional: Verify download with diff as a safety check?
+            # if ! diff -q "$SCRIPT_ABS_PATH" "$temp_script" >/dev/null 2>&1; then
+                # Proceed with update
                 if ! chmod +x "$temp_script"; then
                     print_error "Failed to make temporary script executable."
                     rm -f "$temp_script"
-                    return 1 # Continue with old script?
-                fi
-                # Replace the current script
-                if ! mv "$temp_script" "$SCRIPT_ABS_PATH"; then
-                    print_error "Failed to replace the current script file."
-                    rm -f "$temp_script" # Clean up if mv failed
                     return 1
                 fi
-                print_success "Installer updated successfully."
-                # Re-execute the script with the new version, passing original arguments
+                if ! mv "$temp_script" "$SCRIPT_ABS_PATH"; then
+                    print_error "Failed to replace the current script file."
+                    rm -f "$temp_script"
+                    return 1
+                fi
+                print_success "Installer updated successfully to commit ${latest_remote_sha:0:7}."
                 print_info "Re-executing with updated installer..."
                 exec bash "$SCRIPT_ABS_PATH" "$@"
-                # The script will not reach here if exec is successful
                 print_error "Failed to re-execute the updated script. Please re-run manually: sudo bash $SCRIPT_ABS_PATH"
-                exit 1 # Exit with error if exec fails for some reason
-            else
-                print_info "Skipping installer update. Continuing with the current version."
-                rm -f "$temp_script"
-                return 0
-            fi
+                exit 1
+            # else
+                # This case shouldn't happen if SHAs differed, but handle it.
+                # print_info "Downloaded script is identical to the current one. Strange."
+                # rm -f "$temp_script"
+                # return 0
+            # fi
         else
-            # print_info "Installer script is up-to-date."
-            rm -f "$temp_script"
+            print_info "Skipping installer update. Continuing with the current version."
             return 0
         fi
     else
-        print_warning "Could not download the latest installer script for comparison."
-        rm -f "$temp_script" # Clean up potential partial file
-        return 0 # Continue with current script
+        # SHAs match
+        # print_info "Installer script is up-to-date (Commit: $CURRENT_SCRIPT_COMMIT_SHA)"
+        return 0
     fi
 }
 
