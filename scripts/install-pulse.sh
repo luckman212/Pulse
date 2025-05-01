@@ -161,9 +161,24 @@ self_update_check() {
                  rm -f "$temp_script"
                  return 1
             fi
-            # ---> Fix line endings on TEMP file FIRST < ---
+
+            # ---> NEW: Update embedded SHA in the downloaded file BEFORE fixing endings/moving < ---
+            print_info "[DEBUG] Updating embedded SHA in temp script to $latest_remote_sha..."
+            # Use sed to find the line starting with CURRENT_SCRIPT_COMMIT_SHA= and replace the quoted value
+            # Using # as delimiter for sed to avoid issues with slashes in SHAs (unlikely, but safe)
+            sed -i "s#^CURRENT_SCRIPT_COMMIT_SHA=.*#CURRENT_SCRIPT_COMMIT_SHA=\"$latest_remote_sha\"#" "$temp_script"
+            local update_sha_exit_code=$?
+            if [ $update_sha_exit_code -ne 0 ]; then
+                 print_error "sed command failed while updating embedded SHA! Aborting update." 
+                 print_error "Exit code: $update_sha_exit_code"
+                 rm -f "$temp_script"
+                 return 1
+            fi
+            # --- END NEW STEP ---
+
+            # ---> Fix line endings on TEMP file < ---
             # Keep this step to ensure downloaded script content is clean
-            sed -i 's/\\r$//' "$temp_script"
+            sed -i 's/\r$//' "$temp_script"
             local sed_exit_code=$?
             if [ $sed_exit_code -ne 0 ]; then
                  print_error "sed command failed! Cannot fix line endings. Aborting."
