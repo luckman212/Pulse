@@ -84,6 +84,15 @@ check_root() {
 
 # --- Self-Update Function (GitHub API + jq + git) ---
 self_update_check() {
+    # Check if we were re-executed with a known hash
+    local current_local_sha=""
+    if [ -n "$POST_UPDATE_SHA" ]; then
+        print_info "[DEBUG] Re-executed after update. Using provided SHA: $POST_UPDATE_SHA"
+        current_local_sha="$POST_UPDATE_SHA"
+        # Unset the variable so it's not reused accidentally
+        unset POST_UPDATE_SHA
+    fi
+
     # Only run check if interactive and script path was found
     if [ ! -t 0 ] || [ "$MODE_UPDATE" = true ] || [ -z "$SCRIPT_ABS_PATH" ]; then
         return 0
@@ -133,15 +142,15 @@ self_update_check() {
     fi
     # --- END Get Latest Commit SHA ---
 
-    # --- Get Local Script SHA using git hash-object ---
-    local current_local_sha
-    # Run in a subshell to avoid changing pwd
-    current_local_sha=$( (cd "$PULSE_DIR" && git hash-object "$script_relative_path" 2>/dev/null) )
-    local hash_exit_code=$?
-
-    if [ $hash_exit_code -ne 0 ] || [ -z "$current_local_sha" ]; then
-         print_warning "Could not determine the local script's git hash (Exit code: $hash_exit_code). Skipping self-update check."
-         return 0
+    # --- Get Local Script SHA using git hash-object (only if not re-executed) ---
+    if [ -z "$current_local_sha" ]; then
+        # Run in a subshell to avoid changing pwd
+        current_local_sha=$( (cd "$PULSE_DIR" && git hash-object "$script_relative_path" 2>/dev/null) )
+        local hash_exit_code=$?
+        if [ $hash_exit_code -ne 0 ] || [ -z "$current_local_sha" ]; then
+            print_warning "Could not determine the local script's git hash (Exit code: $hash_exit_code). Skipping self-update check."
+            return 0
+        fi
     fi
     # --- END Get Local Script SHA ---
 
@@ -157,25 +166,26 @@ self_update_check() {
                  rm -f "$temp_script"
                  return 1
             fi
+            # ---> Calculate hash of the downloaded temp file < ---
+            local downloaded_sha
+            downloaded_sha=$( (cd "$(dirname "$temp_script")" && git hash-object "$(basename "$temp_script")" 2>/dev/null) )
+            if [ -z "$downloaded_sha" ]; then
+                print_warning "Could not calculate hash of downloaded temp file. Update may loop."
+                # Proceed anyway, but expect potential loop if hash-object fails later
+            fi
+            # ---> END Calculate hash < ---
+
             if ! chmod +x "$temp_script"; then
                 print_error "Failed to make temporary script executable."
                 rm -f "$temp_script"
                 return 1
             fi
-            if ! mv "$temp_script" "$SCRIPT_ABS_PATH"; then
-                print_error "Failed to replace the current script file."
-                rm -f "$temp_script"
-                return 1
-            fi
             # Ensure script has Unix (LF) line endings after move
             sed -i 's/\r$//' "$SCRIPT_ABS_PATH"
-            # ---> DEBUG: Check hash AFTER sed < ---
-            local post_sed_hash
-            post_sed_hash=$( (cd "$PULSE_DIR" && git hash-object "scripts/install-pulse.sh" 2>/dev/null) )
-            print_info "[DEBUG] Git hash after sed: $post_sed_hash"
-            # ---> END DEBUG < ---
             print_success "Installer updated successfully to commit ${latest_remote_sha:0:7}."
             print_info "Re-executing with updated installer..."
+            # Pass the known correct hash of the updated script via env var
+            export POST_UPDATE_SHA="$downloaded_sha"
             exec bash "$SCRIPT_ABS_PATH" "$@"
             print_error "Failed to re-execute the updated script. Please re-run manually: sudo bash $SCRIPT_ABS_PATH"
             exit 1
