@@ -167,6 +167,8 @@ self_update_check() {
                 rm -f "$temp_script"
                 return 1
             fi
+            # Ensure script has Unix (LF) line endings after move
+            sed -i 's/\r$//' "$SCRIPT_ABS_PATH"
             print_success "Installer updated successfully to commit ${latest_remote_sha:0:7}."
             print_info "Re-executing with updated installer..."
             exec bash "$SCRIPT_ABS_PATH" "$@"
