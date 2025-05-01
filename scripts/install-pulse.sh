@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script Version: c2cadca (Fix: Improve cron job detection accuracy)
+# Script Version: a29105e
 # Testing Self-Update Again: Another small change.
 
 # Pulse for Proxmox VE LXC Installation Script
@@ -15,7 +15,7 @@ LOG_FILE="/var/log/pulse_update.log" # Log file for cron updates
 SCRIPT_ABS_PATH="" # Store absolute path of the script here
 REPO_URL="https://github.com/rcourtman/Pulse.git"
 SCRIPT_RAW_URL="https://raw.githubusercontent.com/rcourtman/Pulse/main/scripts/install-pulse.sh"
-CURRENT_SCRIPT_COMMIT_SHA="__SCRIPT_COMMIT_SHA__" # Will be replaced after commit
+CURRENT_SCRIPT_COMMIT_SHA="a29105e" # Replaced placeholder with actual commit SHA
 
 # --- Flags & Variables ---
 MODE_UPDATE=false # Flag to run in non-interactive update mode
