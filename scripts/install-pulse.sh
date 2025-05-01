@@ -1071,15 +1071,15 @@ prompt_for_cron_setup() {
         print_info "Automatic updates for Pulse appear to be currently ENABLED."
         print_info "(Cron job will update to the latest release tag when run)" # Clarification
         echo "Choose an action:"
-        echo "  1) Change update schedule"
+        echo "  1) Keep current schedule (Do nothing)"
         echo "  2) Disable automatic updates"
-        echo "  3) Keep current schedule (Do nothing)"
+        echo "  3) Change update schedule"
         read -p "Enter your choice (1-3): " cron_manage_choice
 
         case $cron_manage_choice in
-            1) setup_cron_update ;; # Call function to prompt for new schedule and update
+            1) print_info "Keeping current automatic update schedule.";; 
             2) disable_cron_update ;; # Call function to remove the job
-            3) print_info "Keeping current automatic update schedule.";;
+            3) setup_cron_update ;; # Call function to prompt for new schedule and update
             *) print_warning "Invalid choice. No changes made to automatic updates.";;
         esac
     else
