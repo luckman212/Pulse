@@ -251,7 +251,7 @@ check_installation_status_and_determine_action() {
                 INSTALL_MODE="update" # Offer update anyway
             else
                 print_info "Current installed version \(tag\): ${current_tag:-Not on a tag}"
-                print_info "Latest available version (tag): $latest_tag"
+                print_info "Latest available version \(tag\): $latest_tag"
 
                 if [ -n "$current_tag" ] && [ "$current_tag" = "$latest_tag" ]; then
                     print_info "Pulse is already installed and up-to-date with the latest release ($latest_tag)."
