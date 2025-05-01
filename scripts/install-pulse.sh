@@ -82,6 +82,23 @@ check_root() {
   fi
 }
 
+# ---> NEW: Function to inform about dependencies < ---
+print_dependency_info() {
+    print_info "-----------------------------------------------------"
+    print_info "This script requires the following dependencies:"
+    print_info " - Standard tools: curl, git, sudo, gpg, diffutils"
+    print_info "   (These will be installed if missing via apt-get)"
+    print_info " - Node.js & npm: For running Pulse"
+    print_info "   (Will be installed via NodeSource repository setup)"
+    print_info " - jq: For checking for installer script updates"
+    print_info "   (If missing, the script will *attempt* to install it"
+    print_info "    using 'apt-get install jq' to enable self-updates.)"
+    print_info "-----------------------------------------------------"
+    # Optional: Add a short pause or prompt?
+    # read -p "Press Enter to continue..." -n 1 -s
+}
+# --- END NEW FUNCTION ---
+
 # --- Self-Update Function (GitHub API + jq + git) ---
 self_update_check() {
     # Only run check if interactive and script path was found
@@ -95,9 +112,25 @@ self_update_check() {
         return 0
     fi
     if ! command -v jq &> /dev/null; then
-        print_warning "jq command not found, skipping installer self-update check."
-        print_warning "Please install jq (e.g., sudo apt-get update && sudo apt-get install jq)"
-        return 0
+        print_info "jq command not found, attempting to install it for self-update check..."
+        # Attempt to install jq quietly. Requires apt-get.
+        if command -v apt-get &> /dev/null; then
+            apt-get update -qq > /dev/null # Update package lists quietly
+            if apt-get install -y -qq jq > /dev/null; then
+                print_success "jq installed successfully."
+            else
+                local jq_install_exit_code=$?
+                print_warning "Failed to automatically install jq (Exit code: $jq_install_exit_code)."
+                print_warning "Please install jq manually (e.g., sudo apt-get install jq) to enable installer updates."
+                print_warning "Skipping installer self-update check for this run."
+                return 0 # Skip self-update if install failed
+            fi
+        else
+             print_warning "apt-get not found. Cannot automatically install jq."
+             print_warning "Please install jq manually to enable installer updates."
+             print_warning "Skipping installer self-update check for this run."
+             return 0 # Skip self-update if apt-get not found
+        fi
     fi
     # Git is not strictly needed for the SHA comparison, but keep check for now
     local git_ok=false
@@ -1239,7 +1272,10 @@ final_instructions() {
 # --- Main Execution --- Refactored
 check_root
 
-# ---> MOVED: Check for self-update FIRST [if possible] <---
+# ---> NEW: Print dependency info early < ---
+print_dependency_info
+
+# ---> MOVED: Check for self-update FIRST [if possible] < ---
 self_update_check || print_warning "Installer self-check failed, proceeding anyway..."
 
 # Check installation status and determine user's desired action first
