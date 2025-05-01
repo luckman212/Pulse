@@ -303,15 +303,15 @@ check_installation_status_and_determine_action() {
                 fi
             elif [ "$INSTALL_MODE" = "update" ]; then # Update available or fetch failed
                  if [ -n "$SPECIFIED_VERSION_TAG" ]; then
-                     echo "Choose an action:"
-                     echo "  1) Install specified version $SPECIFIED_VERSION_TAG"
-                     echo "  2) Remove Pulse"
-                     echo "  3) Cancel"
+                     printf "%s\n" "Choose an action:"
+                     printf "  %s) %s %s\n" "1" "Install specified version" "$SPECIFIED_VERSION_TAG"
+                     printf "  %s) %s\n" "2" "Remove Pulse"
+                     printf "  %s) %s\n" "3" "Cancel"
                  else # Defaulting to latest tag
-                      echo "Choose an action:"
-                      echo "  1) Update Pulse to the latest version $TARGET_TAG"
-                      echo "  2) Remove Pulse"
-                      echo "  3) Cancel"
+                      printf "%s\n" "Choose an action:"
+                      printf "  %s) %s %s\n" "1" "Update Pulse to the latest version" "$TARGET_TAG"
+                      printf "  %s) %s\n" "2" "Remove Pulse"
+                      printf "  %s) %s\n" "3" "Cancel"
                  fi
                  read -p "Enter your choice [1-3]: " user_choice
                  case $user_choice in
