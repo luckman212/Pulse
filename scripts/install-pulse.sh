@@ -1088,7 +1088,7 @@ prompt_for_cron_setup() {
     escaped_cron_identifier=$(sed 's/[][\.*^$]/\&/g' <<< "$cron_identifier")
 
     # Check if cron job exists for root user, anchored to start of line
-    if crontab -l -u root 2>/dev/null | grep -q "^${escaped_cron_identifier}"; then
+    if crontab -l -u root 2>/dev/null | grep "^${escaped_cron_identifier}" > /dev/null; then
         cron_exists=true
     fi
 
