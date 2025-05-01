@@ -82,7 +82,7 @@ check_root() {
   fi
 }
 
-# --- Self-Update Function (GitHub API + jq) ---
+# --- Self-Update Function (GitHub API + jq + git) ---
 self_update_check() {
     # Only run check if interactive and script path was found
     if [ ! -t 0 ] || [ "$MODE_UPDATE" = true ] || [ -z "$SCRIPT_ABS_PATH" ]; then
@@ -99,6 +99,15 @@ self_update_check() {
         print_warning "Please install jq (e.g., sudo apt-get update && sudo apt-get install jq)"
         return 0
     fi
+    # Check for git *within the potential repo directory* if it exists
+    local git_ok=false
+    if [ -d "$PULSE_DIR/.git" ] && command -v git &> /dev/null; then
+        git_ok=true
+    fi
+    if [ "$git_ok" = false ]; then
+        print_warning "git command not found or not in a git repo context ($PULSE_DIR), skipping installer self-update check."
+        return 0
+    fi
     # --- END Dependencies Check ---
 
     print_info "Checking for updates to the installer script itself (using GitHub API)..."
@@ -106,12 +115,11 @@ self_update_check() {
     # --- Get Latest Commit SHA from GitHub API ---
     local owner="rcourtman"
     local repo="Pulse"
-    local script_path="scripts/install-pulse.sh"
+    local script_relative_path="scripts/install-pulse.sh" # Relative path within repo
     local branch="main"
-    local api_url="https://api.github.com/repos/${owner}/${repo}/commits?path=${script_path}&sha=${branch}&per_page=1"
+    local api_url="https://api.github.com/repos/${owner}/${repo}/commits?path=${script_relative_path}&sha=${branch}&per_page=1"
     local latest_remote_sha
 
-    # Make the API call, extract SHA with jq
     latest_remote_sha=$(curl -sL -H "Accept: application/vnd.github.v3+json" "$api_url" | jq -r 'if type=="array" and length > 0 then .[0].sha else empty end')
     local curl_exit_code=$?
 
@@ -119,59 +127,57 @@ self_update_check() {
         print_warning "curl command failed when checking GitHub API for updates (Exit code: $curl_exit_code). Skipping self-update check."
         return 0
     fi
-
     if [ -z "$latest_remote_sha" ] || [ "$latest_remote_sha" = "null" ]; then
         print_warning "Could not determine the latest commit SHA from GitHub API. Skipping self-update check."
         return 0
     fi
     # --- END Get Latest Commit SHA ---
 
+    # --- Get Local Script SHA using git hash-object ---
+    local current_local_sha
+    # Run in a subshell to avoid changing pwd
+    current_local_sha=$( (cd "$PULSE_DIR" && git hash-object "$script_relative_path" 2>/dev/null) )
+    local hash_exit_code=$?
+
+    if [ $hash_exit_code -ne 0 ] || [ -z "$current_local_sha" ]; then
+         print_warning "Could not determine the local script's git hash (Exit code: $hash_exit_code). Skipping self-update check."
+         return 0
+    fi
+    # --- END Get Local Script SHA ---
+
     # --- Compare SHAs ---
-    if [ "$latest_remote_sha" != "$CURRENT_SCRIPT_COMMIT_SHA" ]; then
-        print_warning "A newer version of the installation script (Commit: ${latest_remote_sha:0:7}) is available."
+    if [ "$latest_remote_sha" != "$current_local_sha" ]; then
+        print_warning "A newer version of the installation script (Remote: ${latest_remote_sha:0:7}, Local: ${current_local_sha:0:7}) is available."
         read -p "Do you want to update the installer and re-run? [Y/n]: " update_confirm
-        if [[ ! "$update_confirm" =~ ^[Nn]$ ]]; then # Default Yes
+        if [[ ! "$update_confirm" =~ ^[Nn]$ ]]; then
             print_info "Updating installer script..."
             local temp_script="/tmp/${SCRIPT_NAME}.tmp"
-
-            # Download the latest version from raw URL
             if ! curl -sL "$SCRIPT_RAW_URL" -o "$temp_script"; then
                  print_error "Failed to download the latest installer script from $SCRIPT_RAW_URL."
                  rm -f "$temp_script"
-                 return 1 # Indicate failure
+                 return 1
             fi
-
-            # Optional: Verify download with diff as a safety check?
-            # if ! diff -q "$SCRIPT_ABS_PATH" "$temp_script" >/dev/null 2>&1; then
-                # Proceed with update
-                if ! chmod +x "$temp_script"; then
-                    print_error "Failed to make temporary script executable."
-                    rm -f "$temp_script"
-                    return 1
-                fi
-                if ! mv "$temp_script" "$SCRIPT_ABS_PATH"; then
-                    print_error "Failed to replace the current script file."
-                    rm -f "$temp_script"
-                    return 1
-                fi
-                print_success "Installer updated successfully to commit ${latest_remote_sha:0:7}."
-                print_info "Re-executing with updated installer..."
-                exec bash "$SCRIPT_ABS_PATH" "$@"
-                print_error "Failed to re-execute the updated script. Please re-run manually: sudo bash $SCRIPT_ABS_PATH"
-                exit 1
-            # else
-                # This case shouldn't happen if SHAs differed, but handle it.
-                # print_info "Downloaded script is identical to the current one. Strange."
-                # rm -f "$temp_script"
-                # return 0
-            # fi
+            if ! chmod +x "$temp_script"; then
+                print_error "Failed to make temporary script executable."
+                rm -f "$temp_script"
+                return 1
+            fi
+            if ! mv "$temp_script" "$SCRIPT_ABS_PATH"; then
+                print_error "Failed to replace the current script file."
+                rm -f "$temp_script"
+                return 1
+            fi
+            print_success "Installer updated successfully to commit ${latest_remote_sha:0:7}."
+            print_info "Re-executing with updated installer..."
+            exec bash "$SCRIPT_ABS_PATH" "$@"
+            print_error "Failed to re-execute the updated script. Please re-run manually: sudo bash $SCRIPT_ABS_PATH"
+            exit 1
         else
             print_info "Skipping installer update. Continuing with the current version."
             return 0
         fi
     else
-        # SHAs match
-        # print_info "Installer script is up-to-date (Commit: $CURRENT_SCRIPT_COMMIT_SHA)"
+        # print_info "Installer script is up-to-date (Commit: $current_local_sha)"
         return 0
     fi
 }
