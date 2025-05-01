@@ -69,7 +69,7 @@ print_warning() {
 }
 
 print_error() {
-  echo -e "\033[1;31m[ERROR]\033[0m $1" >&2
+  echo -e "\033[1;31m[ERROR]\033[0m $1 >&2
 }
 
 check_root() {
@@ -474,6 +474,15 @@ perform_update() {
 
     # Add safe directory config for root user, just in case
     git config --global --add safe.directory "$PULSE_DIR" > /dev/null 2>&1 || print_warning "Could not configure safe.directory for root user."
+
+    # ---> Force reset local changes before fetching <--- 
+    print_info "Resetting local repository to discard potential changes [running as user $PULSE_USER]..."
+    if ! sudo -u "$PULSE_USER" git reset --hard HEAD; then
+        print_error "Failed to reset local repository. Aborting update."
+        cd ..
+        return 1
+    fi
+    # ---> End modification <--- 
 
     print_info "Fetching latest changes and tags from git [running as user $PULSE_USER]..."
     # Ensure tags are fetched
