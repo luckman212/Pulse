@@ -1,4 +1,5 @@
 #!/bin/bash
+# Script Version: a3d59ae (Fix: Correct syntax error and self-update loop)
 
 # Pulse for Proxmox VE LXC Installation Script
 # This script automates the installation and setup of Pulse within a Proxmox LXC container.
@@ -69,7 +70,7 @@ print_warning() {
 }
 
 print_error() {
-  echo -e "\033[1;31m[ERROR]\033[0m $1" >&2
+  echo -e "\033[1;31m[ERROR]\033[0m $1 >&2"
 }
 
 check_root() {
@@ -85,11 +86,6 @@ self_update_check() {
     if [ ! -t 0 ] || [ "$MODE_UPDATE" = true ] || [ -z "$SCRIPT_ABS_PATH" ]; then
         return 0
     fi
-
-    # ---> TEMPORARILY DISABLED FOR LOCAL TESTING < ---
-    # print_info "Temporarily skipping self-update check for local testing."
-    # return 0
-    # ---> END TEMPORARY DISABLE < ---
 
     # ---> Check dependencies *before* attempting update < ---
     if ! command -v curl &> /dev/null || ! command -v diff &> /dev/null; then
@@ -282,10 +278,10 @@ check_installation_status_and_determine_action() {
                 # If user specified a version different from current, offer update
                 if [ -n "$SPECIFIED_VERSION_TAG" ] && [ "$SPECIFIED_VERSION_TAG" != "$current_tag" ]; then
                      print_info "You requested version $SPECIFIED_VERSION_TAG, but $current_tag is installed."
-                     printf "%s\\n" "Choose an action:" # Use printf
-                     printf "  %s) %s %s\\n" "1" "Install specified version" "$SPECIFIED_VERSION_TAG" # Use printf
-                     printf "  %s) %s\\n" "2" "Remove Pulse" # Use printf
-                     printf "  %s) %s\\n" "3" "Cancel" # Use printf
+                     printf '%s\n' "Choose an action:"
+                     printf '  %s) %s %s\n' "1" "Install specified version" "$SPECIFIED_VERSION_TAG"
+                     printf '  %s) %s\n' "2" "Remove Pulse"
+                     printf '  %s) %s\n' "3" "Cancel"
                      read -p "Enter your choice [1-3]: " user_choice
                      case $user_choice in
                          1) INSTALL_MODE="update" ;; # Treat re-run as update
@@ -294,10 +290,10 @@ check_installation_status_and_determine_action() {
                          *) print_error "Invalid choice."; INSTALL_MODE="error" ;;
                      esac
                 else # Up to date and no specific version requested OR specified matches current
-                    printf "%s\\n" "Choose an action:" # Use printf
-                    printf "  %s) %s %s\\n" "1" "Re-install current version" "$current_tag" # Use printf
-                    printf "  %s) %s\\n" "2" "Remove Pulse" # Use printf
-                    printf "  %s) %s\\n" "3" "Cancel" # Use printf
+                    printf '%s\n' "Choose an action:"
+                    printf '  %s) %s %s\n' "1" "Re-install current version" "$current_tag"
+                    printf '  %s) %s\n' "2" "Remove Pulse"
+                    printf '  %s) %s\n' "3" "Cancel"
                     read -p "Enter your choice [1-3]: " user_choice
                     case $user_choice in
                         1) INSTALL_MODE="update" ;; # Treat re-run as update
@@ -308,15 +304,15 @@ check_installation_status_and_determine_action() {
                 fi
             elif [ "$INSTALL_MODE" = "update" ]; then # Update available or fetch failed
                  if [ -n "$SPECIFIED_VERSION_TAG" ]; then
-                     printf "%s\\n" "Choose an action:"
-                     printf "  %s) %s %s\\n" "1" "Install specified version" "$SPECIFIED_VERSION_TAG"
-                     printf "  %s) %s\\n" "2" "Remove Pulse"
-                     printf "  %s) %s\\n" "3" "Cancel"
+                     printf '%s\n' "Choose an action:"
+                     printf '  %s) %s %s\n' "1" "Install specified version" "$SPECIFIED_VERSION_TAG"
+                     printf '  %s) %s\n' "2" "Remove Pulse"
+                     printf '  %s) %s\n' "3" "Cancel"
                  else # Defaulting to latest tag
-                      printf "%s\\n" "Choose an action:"
-                      printf "  %s) %s %s\\n" "1" "Update Pulse to the latest version" "$TARGET_TAG"
-                      printf "  %s) %s\\n" "2" "Remove Pulse"
-                      printf "  %s) %s\\n" "3" "Cancel"
+                      printf '%s\n' "Choose an action:"
+                      printf '  %s) %s %s\n' "1" "Update Pulse to the latest version" "$TARGET_TAG"
+                      printf '  %s) %s\n' "2" "Remove Pulse"
+                      printf '  %s) %s\n' "3" "Cancel"
                  fi
                  read -p "Enter your choice [1-3]: " user_choice
                  case $user_choice in
@@ -330,7 +326,7 @@ check_installation_status_and_determine_action() {
         else
             # Directory exists but isn't a git repository
             print_error "Directory $PULSE_DIR exists but does not appear to be a valid Pulse git repository."
-            print_error "Please remove this directory manually ($PULSE_DIR) or choose a different installation path and re-run the script."
+            print_error "Please remove this directory manually \($PULSE_DIR\) or choose a different installation path and re-run the script."
             INSTALL_MODE="error"
         fi
     else
