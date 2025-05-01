@@ -69,7 +69,7 @@ print_warning() {
 }
 
 print_error() {
-  echo -e "\033[1;31m[ERROR]\033[0m $1 >&2
+  echo -e "\033[1;31m[ERROR]\033[0m $1" >&2
 }
 
 check_root() {
@@ -86,12 +86,17 @@ self_update_check() {
         return 0
     fi
 
-    # ---> Check dependencies *before* attempting update <---
+    # ---> TEMPORARILY DISABLED FOR LOCAL TESTING < ---
+    # print_info "Temporarily skipping self-update check for local testing."
+    # return 0
+    # ---> END TEMPORARY DISABLE < ---
+
+    # ---> Check dependencies *before* attempting update < ---
     if ! command -v curl &> /dev/null || ! command -v diff &> /dev/null; then
         # Silently skip check if tools missing
         return 0
     fi
-    # ---> END MODIFICATION <---
+    # ---> END MODIFICATION < ---
 
     print_info "Checking for updates to the installer script itself..."
     local temp_script="/tmp/${SCRIPT_NAME}.tmp"
@@ -277,10 +282,10 @@ check_installation_status_and_determine_action() {
                 # If user specified a version different from current, offer update
                 if [ -n "$SPECIFIED_VERSION_TAG" ] && [ "$SPECIFIED_VERSION_TAG" != "$current_tag" ]; then
                      print_info "You requested version $SPECIFIED_VERSION_TAG, but $current_tag is installed."
-                     echo "Choose an action:"
-                     echo "  1) Install specified version $SPECIFIED_VERSION_TAG"
-                     echo "  2) Remove Pulse"
-                     echo "  3) Cancel"
+                     printf "%s\\n" "Choose an action:" # Use printf
+                     printf "  %s) %s %s\\n" "1" "Install specified version" "$SPECIFIED_VERSION_TAG" # Use printf
+                     printf "  %s) %s\\n" "2" "Remove Pulse" # Use printf
+                     printf "  %s) %s\\n" "3" "Cancel" # Use printf
                      read -p "Enter your choice [1-3]: " user_choice
                      case $user_choice in
                          1) INSTALL_MODE="update" ;; # Treat re-run as update
@@ -289,10 +294,10 @@ check_installation_status_and_determine_action() {
                          *) print_error "Invalid choice."; INSTALL_MODE="error" ;;
                      esac
                 else # Up to date and no specific version requested OR specified matches current
-                    echo "Choose an action:"
-                    echo "  1) Re-install current version $current_tag" # Changed prompt
-                    echo "  2) Remove Pulse"
-                    echo "  3) Cancel"
+                    printf "%s\\n" "Choose an action:" # Use printf
+                    printf "  %s) %s %s\\n" "1" "Re-install current version" "$current_tag" # Use printf
+                    printf "  %s) %s\\n" "2" "Remove Pulse" # Use printf
+                    printf "  %s) %s\\n" "3" "Cancel" # Use printf
                     read -p "Enter your choice [1-3]: " user_choice
                     case $user_choice in
                         1) INSTALL_MODE="update" ;; # Treat re-run as update
@@ -303,15 +308,15 @@ check_installation_status_and_determine_action() {
                 fi
             elif [ "$INSTALL_MODE" = "update" ]; then # Update available or fetch failed
                  if [ -n "$SPECIFIED_VERSION_TAG" ]; then
-                     printf "%s\n" "Choose an action:"
-                     printf "  %s) %s %s\n" "1" "Install specified version" "$SPECIFIED_VERSION_TAG"
-                     printf "  %s) %s\n" "2" "Remove Pulse"
-                     printf "  %s) %s\n" "3" "Cancel"
+                     printf "%s\\n" "Choose an action:"
+                     printf "  %s) %s %s\\n" "1" "Install specified version" "$SPECIFIED_VERSION_TAG"
+                     printf "  %s) %s\\n" "2" "Remove Pulse"
+                     printf "  %s) %s\\n" "3" "Cancel"
                  else # Defaulting to latest tag
-                      printf "%s\n" "Choose an action:"
-                      printf "  %s) %s %s\n" "1" "Update Pulse to the latest version" "$TARGET_TAG"
-                      printf "  %s) %s\n" "2" "Remove Pulse"
-                      printf "  %s) %s\n" "3" "Cancel"
+                      printf "%s\\n" "Choose an action:"
+                      printf "  %s) %s %s\\n" "1" "Update Pulse to the latest version" "$TARGET_TAG"
+                      printf "  %s) %s\\n" "2" "Remove Pulse"
+                      printf "  %s) %s\\n" "3" "Cancel"
                  fi
                  read -p "Enter your choice [1-3]: " user_choice
                  case $user_choice in
@@ -1141,7 +1146,6 @@ final_instructions() {
     print_info "The Pulse service $SERVICE_NAME is running and enabled on boot."
     print_info "To check the status: sudo systemctl status $SERVICE_NAME"
     print_info "To view logs: sudo journalctl -u $SERVICE_NAME -f"
-    print_info "Configuration file: $PULSE_DIR/.env"
     echo "-------------------------------------------------------------"
 }
 
