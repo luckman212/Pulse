@@ -166,12 +166,15 @@ self_update_check() {
                  rm -f "$temp_script"
                  return 1
             fi
-            # ---> Calculate hash of the downloaded temp file < ---
+            # ---> Fix line endings on TEMP file FIRST < ---
+            sed -i 's/\r$//' "$temp_script"
+
+            # ---> Calculate hash of the FIXED temp file < ---
             local downloaded_sha
-            downloaded_sha=$( (cd "$(dirname "$temp_script")" && git hash-object "$(basename "$temp_script")" 2>/dev/null) )
+            # Note: No need for subshell or complex pathing, hash-object takes filename
+            downloaded_sha=$(git hash-object "$temp_script" 2>/dev/null)
             if [ -z "$downloaded_sha" ]; then
                 print_warning "Could not calculate hash of downloaded temp file. Update may loop."
-                # Proceed anyway, but expect potential loop if hash-object fails later
             fi
             # ---> END Calculate hash < ---
 
@@ -180,8 +183,12 @@ self_update_check() {
                 rm -f "$temp_script"
                 return 1
             fi
-            # Ensure script has Unix (LF) line endings after move
-            sed -i 's/\r$//' "$SCRIPT_ABS_PATH"
+            # --- Move the FIXED temp file into place ---
+            if ! mv "$temp_script" "$SCRIPT_ABS_PATH"; then
+                 print_error "Failed to replace the current script file."
+                 rm -f "$temp_script" # Clean up if mv failed
+                 return 1
+            fi
             print_success "Installer updated successfully to commit ${latest_remote_sha:0:7}."
             print_info "Re-executing with updated installer..."
             # Pass the known correct hash of the updated script via env var
