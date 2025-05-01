@@ -4,6 +4,7 @@
 # This script automates the installation and setup of Pulse within a Proxmox LXC container.
 
 # --- Configuration ---
+SCRIPT_VERSION="1.2.0" # Simple version identifier
 NODE_MAJOR_VERSION=20 # Specify the desired Node.js major version (e.g., 18, 20)
 PULSE_DIR="/opt/pulse-proxmox"
 PULSE_USER="pulse" # Dedicated user to run Pulse
@@ -81,8 +82,10 @@ check_root() {
 
 # --- Self-Update Function ---
 self_update_check() {
+    print_info "Entering self_update_check function..." # DEBUG
     # Only run check if interactive and script path was found
     if [ ! -t 0 ] || [ "$MODE_UPDATE" = true ] || [ -z "$SCRIPT_ABS_PATH" ]; then
+        print_info "Skipping self-update check (non-interactive, update mode, or no script path)." # DEBUG
         return 0
     fi
 
@@ -101,7 +104,7 @@ self_update_check() {
         # Compare the downloaded script with the running script
         if ! diff -q "$SCRIPT_ABS_PATH" "$temp_script" >/dev/null 2>&1; then
             print_warning "A newer version of the installation script is available."
-            read -p "Do you want to update the installer and re-run? (Y/n): " update_confirm
+            read -p "Do you want to update the installer and re-run? [Y/n]: " update_confirm
             if [[ ! "$update_confirm" =~ ^[Nn]$ ]]; then # Default Yes
                 print_info "Updating installer script..."
                 # Make the new script executable
@@ -370,8 +373,8 @@ apt_update_upgrade() {
 }
 
 install_dependencies() {
-    print_info "Installing necessary dependencies (git, curl, sudo, gpg)..."
-    if apt-get install -y git curl sudo gpg > /dev/null; then
+    print_info "Installing necessary dependencies (git, curl, sudo, gpg, diffutils)..."
+    if apt-get install -y git curl sudo gpg diffutils > /dev/null; then
         print_success "Dependencies installed."
     else
         print_error "Failed to install dependencies."
@@ -1142,6 +1145,12 @@ final_instructions() {
 # --- Main Execution --- Refactored
 check_root
 
+# --- Announce Script Version ---
+print_info "Running Pulse Installer Script version: $SCRIPT_VERSION"
+
+# ---> MOVED: Check for self-update FIRST (if possible) <---
+self_update_check || print_warning "Installer self-check failed, proceeding anyway..."
+
 # Check installation status and determine user's desired action first
 # This also determines TARGET_TAG
 check_installation_status_and_determine_action
@@ -1163,8 +1172,8 @@ case "$INSTALL_MODE" in
         exit 1
         ;;
     "install" | "update")
-        # ---> MOVED: Check for self-update FIRST (if possible) <---
-        self_update_check || print_warning "Installer self-check failed, proceeding anyway..."
+        # ---> MOVED: Self-update check moved to the beginning <---
+        # self_update_check || print_warning "Installer self-check failed, proceeding anyway..."
 
         # Only install dependencies if installing or updating
         print_info "Proceeding with install/update. Installing prerequisites..."
