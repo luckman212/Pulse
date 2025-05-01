@@ -22,6 +22,7 @@ MODE_UPDATE=false # Flag to run in non-interactive update mode
 INSTALL_MODE=""   # Stores the determined action: install, update, remove, cancel, error
 SPECIFIED_VERSION_TAG="" # Stores tag specified via --version
 TARGET_TAG="" # Stores the final tag to be installed/updated
+INSTALLER_WAS_REEXECUTED=false # ---> NEW: Flag to track re-execution
 
 # Determine absolute path of the script early
 if command -v readlink &> /dev/null && readlink -f "$0" &> /dev/null; then
@@ -45,6 +46,10 @@ fi
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --update) MODE_UPDATE=true; shift ;;
+        --installer-reexecuted)
+             INSTALLER_WAS_REEXECUTED=true
+             shift # Consume the flag
+             ;;
         --version)
             if [[ -n "$2" ]] && [[ "$2" != --* ]]; then
                 SPECIFIED_VERSION_TAG="$2"
@@ -242,10 +247,8 @@ self_update_check() {
             fi
             print_success "Installer updated successfully to commit ${latest_remote_sha:0:7}."
             print_info "Re-executing with updated installer..."
-            # ---> NEW: Set flag before re-executing < ---
-            export PULSE_INSTALLER_REEXECUTED=true
-            # --- Remove POST_UPDATE_SHA export --- # Already removed, comment confirms
-            exec bash "$SCRIPT_ABS_PATH" "$@"
+            # ---> MODIFY exec to pass flag < ---
+            exec bash "$SCRIPT_ABS_PATH" --installer-reexecuted "$@"
             print_error "Failed to re-execute the updated script. Please re-run manually: sudo bash $SCRIPT_ABS_PATH"
             exit 1
         else
@@ -1283,8 +1286,8 @@ final_instructions() {
 # --- Main Execution --- Refactored
 check_root
 
-# ---> MODIFIED: Print dependency info only on initial execution < ---
-if [ -z "$PULSE_INSTALLER_REEXECUTED" ]; then
+# ---> MODIFIED: Check flag instead of env var < ---
+if [ "$INSTALLER_WAS_REEXECUTED" != true ]; then
     print_dependency_info
 fi
 
