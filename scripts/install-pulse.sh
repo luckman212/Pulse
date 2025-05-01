@@ -1031,17 +1031,25 @@ setup_cron_update() {
     # Get current crontab content or empty string if none exists
     current_cron=$(crontab -l -u root 2>/dev/null || true)
 
-    # Use sed to remove the identifier line and the line immediately following it.
-    # The pattern looks for the exact identifier comment at the beginning of a line (^).
-    # If found, it reads the Next line [N] and Deletes both [d].
-    filtered_cron=$(echo "$current_cron" | sed "/^${escaped_cron_identifier}$/{N;d;}")
+    # Define BOTH possible identifiers (old and new)
+    local old_cron_identifier="# Pulse-Auto-Update (install-pulse.sh)"
+    local new_cron_identifier="# Pulse-Auto-Update [install-pulse.sh]"
+    # Escape for sed
+    local escaped_old_cron_identifier
+    escaped_old_cron_identifier=$(sed 's/[][\.*^$()]/\&/g' <<< "$old_cron_identifier") # Escape () too
+    local escaped_new_cron_identifier
+    escaped_new_cron_identifier=$(sed 's/[][\.*^$()]/\&/g' <<< "$new_cron_identifier") # Escape [] too
 
-    # Prepare the new crontab content
+    # Use sed to remove BOTH potential identifier lines and the lines immediately following them.
+    # Chain two sed commands: first remove old, then remove new from the result.
+    filtered_cron=$(echo "$current_cron" | sed "/^${escaped_old_cron_identifier}$/{N;d;}" | sed "/^${escaped_new_cron_identifier}$/{N;d;}")
+
+    # Prepare the new crontab content (using the NEW identifier)
     # If filtered_cron is empty after removal, avoid leading newline. Otherwise, add newline before appending.
     if [ -z "$filtered_cron" ]; then
-        new_cron_content=$(printf "%s\n%s" "$cron_identifier" "$cron_command")
+        new_cron_content=$(printf "%s\n%s" "$new_cron_identifier" "$cron_command")
     else
-        new_cron_content=$(printf "%s\n%s\n%s" "$filtered_cron" "$cron_identifier" "$cron_command")
+        new_cron_content=$(printf "%s\n%s\n%s" "$filtered_cron" "$new_cron_identifier" "$cron_command")
     fi
 
     # Load the new crontab content
