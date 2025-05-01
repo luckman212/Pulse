@@ -118,8 +118,12 @@ self_update_check() {
                     return 1
                 fi
                 print_success "Installer updated successfully."
-                print_info "Please re-run the script using: sudo bash $SCRIPT_ABS_PATH"
-                exit 0 # Exit cleanly, user needs to re-run
+                # Re-execute the script with the new version, passing original arguments
+                print_info "Re-executing with updated installer..."
+                exec bash "$SCRIPT_ABS_PATH" "$@"
+                # The script will not reach here if exec is successful
+                print_error "Failed to re-execute the updated script. Please re-run manually: sudo bash $SCRIPT_ABS_PATH"
+                exit 1 # Exit with error if exec fails for some reason
             else
                 print_info "Skipping installer update. Continuing with the current version."
                 rm -f "$temp_script"
