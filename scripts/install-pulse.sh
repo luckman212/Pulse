@@ -139,19 +139,19 @@ self_update_check() {
 # Fetches remote tags and returns the latest semantic version tag [vX.Y.Z]
 get_latest_remote_tag() {
     local latest_tag
-    print_info "Fetching latest remote tags..."
+    print_info "Fetching latest remote tags..." >&2 # Redirect info message to stderr
     # Use sudo only if not already root [though check_root ensures we are]
     if ! sudo -u "$PULSE_USER" git fetch origin --tags --force >/dev/null 2>&1; then
-        print_warning "Could not fetch remote tags."
+        print_warning "Could not fetch remote tags." >&2 # Also redirect warning
         return 1
     fi
     # Sort tags semantically [version sort] and get the latest 'v*' tag
     latest_tag=$(sudo -u "$PULSE_USER" git tag -l 'v*' --sort='-version:refname' | head -n 1)
     if [ -z "$latest_tag" ]; then
-        print_warning "Could not determine the latest remote release tag."
+        print_warning "Could not determine the latest remote release tag." >&2 # Also redirect warning
         return 1
     fi
-    echo "$latest_tag"
+    echo "$latest_tag" # This is the intended stdout
     return 0
 }
 
