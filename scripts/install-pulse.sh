@@ -167,14 +167,30 @@ self_update_check() {
                  return 1
             fi
             # ---> Fix line endings on TEMP file FIRST < ---
-            sed -i 's/\r$//' "$temp_script"
+            # Temporarily exit on error for debugging
+            set -e
+            local before_sed_hash
+            before_sed_hash=$(git hash-object "$temp_script" 2>/dev/null || echo "hash-before-failed")
+            print_info "[DEBUG] Hash of temp file BEFORE sed: $before_sed_hash"
 
+            sed -i 's/\r$//' "$temp_script"
+            local sed_exit_code=$?
+            print_info "[DEBUG] sed exit code: $sed_exit_code"
+            if [ $sed_exit_code -ne 0 ]; then
+                 print_error "sed command failed! Cannot fix line endings. Aborting."
+                 rm -f "$temp_script"
+                 set +e # Turn off exit on error
+                 return 1
+            fi
+            set +e # Turn off exit on error
             # ---> Calculate hash of the FIXED temp file < ---
             local downloaded_sha
             # Note: No need for subshell or complex pathing, hash-object takes filename
-            downloaded_sha=$(git hash-object "$temp_script" 2>/dev/null)
-            if [ -z "$downloaded_sha" ]; then
-                print_warning "Could not calculate hash of downloaded temp file. Update may loop."
+            downloaded_sha=$(git hash-object "$temp_script" 2>/dev/null || echo "hash-after-failed")
+            print_info "[DEBUG] Hash of temp file AFTER sed: $downloaded_sha"
+            if [ "$downloaded_sha" = "hash-after-failed" ] || [ -z "$downloaded_sha" ]; then
+                print_warning "Could not calculate hash of downloaded temp file after sed. Update may loop."
+                downloaded_sha="" # Set to empty to avoid passing bad hash
             fi
             # ---> END Calculate hash < ---
 
