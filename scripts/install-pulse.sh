@@ -242,7 +242,9 @@ self_update_check() {
             fi
             print_success "Installer updated successfully to commit ${latest_remote_sha:0:7}."
             print_info "Re-executing with updated installer..."
-            # --- Remove POST_UPDATE_SHA export ---
+            # ---> NEW: Set flag before re-executing < ---
+            export PULSE_INSTALLER_REEXECUTED=true
+            # --- Remove POST_UPDATE_SHA export --- # Already removed, comment confirms
             exec bash "$SCRIPT_ABS_PATH" "$@"
             print_error "Failed to re-execute the updated script. Please re-run manually: sudo bash $SCRIPT_ABS_PATH"
             exit 1
@@ -1281,10 +1283,12 @@ final_instructions() {
 # --- Main Execution --- Refactored
 check_root
 
-# ---> NEW: Print dependency info early < ---
-print_dependency_info
+# ---> MODIFIED: Print dependency info only on initial execution < ---
+if [ -z "$PULSE_INSTALLER_REEXECUTED" ]; then
+    print_dependency_info
+fi
 
-# ---> MOVED: Check for self-update FIRST [if possible] < ---
+# Check for self-update - runs regardless of whether info was printed
 self_update_check || print_warning "Installer self-check failed, proceeding anyway..."
 
 # Check installation status and determine user's desired action first
