@@ -1,6 +1,6 @@
 #!/bin/bash
-# Script Version: 43aef0f (Fix: Improve cron job update to remove old identifier format)
-# Testing Self-Update: Small change to trigger update detection.
+# Script Version: c2cadca (Fix: Improve cron job detection accuracy)
+# Testing Self-Update Again: Another small change.
 
 # Pulse for Proxmox VE LXC Installation Script
 # This script automates the installation and setup of Pulse within a Proxmox LXC container.
