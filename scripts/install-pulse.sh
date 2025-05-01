@@ -84,15 +84,6 @@ check_root() {
 
 # --- Self-Update Function (GitHub API + jq + git) ---
 self_update_check() {
-    # Check if we were re-executed with a known hash
-    local current_local_sha=""
-    if [ -n "$POST_UPDATE_SHA" ]; then
-        print_info "[DEBUG] Re-executed after update. Using provided SHA: $POST_UPDATE_SHA"
-        current_local_sha="$POST_UPDATE_SHA"
-        # Unset the variable so it's not reused accidentally
-        unset POST_UPDATE_SHA
-    fi
-
     # Only run check if interactive and script path was found
     if [ ! -t 0 ] || [ "$MODE_UPDATE" = true ] || [ -z "$SCRIPT_ABS_PATH" ]; then
         return 0
@@ -108,14 +99,21 @@ self_update_check() {
         print_warning "Please install jq (e.g., sudo apt-get update && sudo apt-get install jq)"
         return 0
     fi
-    # Check for git *within the potential repo directory* if it exists
+    # Git is not strictly needed for the SHA comparison, but keep check for now
     local git_ok=false
     if [ -d "$PULSE_DIR/.git" ] && command -v git &> /dev/null; then
         git_ok=true
     fi
     if [ "$git_ok" = false ]; then
-        print_warning "git command not found or not in a git repo context ($PULSE_DIR), skipping installer self-update check."
-        return 0
+        # If we are *inside* the cloned repo, git is needed for other parts later.
+        # If not yet cloned, it's okay to not have it for this check.
+        # We rely on the absolute script path existing for updates.
+        if [ -d "$PULSE_DIR/.git" ]; then
+            print_warning "git command not found within $PULSE_DIR, skipping installer self-update check."
+            return 0
+        else
+             print_info "Git not found or $PULSE_DIR not a repo yet, proceeding with API check."
+        fi
     fi
     # --- END Dependencies Check ---
 
@@ -142,17 +140,14 @@ self_update_check() {
     fi
     # --- END Get Latest Commit SHA ---
 
-    # --- Get Local Script SHA using git hash-object (only if not re-executed) ---
+    # --- Use Embedded SHA for Local Version ---
+    # The currently running script's commit SHA is hardcoded at the top
+    local current_local_sha="$CURRENT_SCRIPT_COMMIT_SHA"
     if [ -z "$current_local_sha" ]; then
-        # Run in a subshell to avoid changing pwd
-        current_local_sha=$( (cd "$PULSE_DIR" && git hash-object "$script_relative_path" 2>/dev/null) )
-        local hash_exit_code=$?
-        if [ $hash_exit_code -ne 0 ] || [ -z "$current_local_sha" ]; then
-            print_warning "Could not determine the local script's git hash (Exit code: $hash_exit_code). Skipping self-update check."
-            return 0
-        fi
+        print_warning "Could not find embedded CURRENT_SCRIPT_COMMIT_SHA in the script. Skipping self-update check."
+        return 0
     fi
-    # --- END Get Local Script SHA ---
+    # --- END Use Embedded SHA ---
 
     # --- Compare SHAs ---
     if [ "$latest_remote_sha" != "$current_local_sha" ]; then
@@ -167,32 +162,15 @@ self_update_check() {
                  return 1
             fi
             # ---> Fix line endings on TEMP file FIRST < ---
-            # Temporarily exit on error for debugging
-            set -e
-            local before_sed_hash
-            before_sed_hash=$(git hash-object "$temp_script" 2>/dev/null || echo "hash-before-failed")
-            print_info "[DEBUG] Hash of temp file BEFORE sed: $before_sed_hash"
-
-            sed -i 's/\r$//' "$temp_script"
+            # Keep this step to ensure downloaded script content is clean
+            sed -i 's/\\r$//' "$temp_script"
             local sed_exit_code=$?
-            print_info "[DEBUG] sed exit code: $sed_exit_code"
             if [ $sed_exit_code -ne 0 ]; then
                  print_error "sed command failed! Cannot fix line endings. Aborting."
                  rm -f "$temp_script"
-                 set +e # Turn off exit on error
-                 return 1
+                 return 1 # Return instead of exit
             fi
-            set +e # Turn off exit on error
-            # ---> Calculate hash of the FIXED temp file < ---
-            local downloaded_sha
-            # Note: No need for subshell or complex pathing, hash-object takes filename
-            downloaded_sha=$(git hash-object "$temp_script" 2>/dev/null || echo "hash-after-failed")
-            print_info "[DEBUG] Hash of temp file AFTER sed: $downloaded_sha"
-            if [ "$downloaded_sha" = "hash-after-failed" ] || [ -z "$downloaded_sha" ]; then
-                print_warning "Could not calculate hash of downloaded temp file after sed. Update may loop."
-                downloaded_sha="" # Set to empty to avoid passing bad hash
-            fi
-            # ---> END Calculate hash < ---
+            # ---> Remove hash calculation of temp file ---
 
             if ! chmod +x "$temp_script"; then
                 print_error "Failed to make temporary script executable."
@@ -207,8 +185,7 @@ self_update_check() {
             fi
             print_success "Installer updated successfully to commit ${latest_remote_sha:0:7}."
             print_info "Re-executing with updated installer..."
-            # Pass the known correct hash of the updated script via env var
-            export POST_UPDATE_SHA="$downloaded_sha"
+            # --- Remove POST_UPDATE_SHA export ---
             exec bash "$SCRIPT_ABS_PATH" "$@"
             print_error "Failed to re-execute the updated script. Please re-run manually: sudo bash $SCRIPT_ABS_PATH"
             exit 1
@@ -217,7 +194,7 @@ self_update_check() {
             return 0
         fi
     else
-        # print_info "Installer script is up-to-date (Commit: $current_local_sha)"
+        print_info "Installer script is up-to-date (Commit: $current_local_sha)" # Use info level
         return 0
     fi
 }
