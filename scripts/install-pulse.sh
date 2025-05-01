@@ -1081,10 +1081,14 @@ prompt_for_cron_setup() {
         return 0
     fi
 
-    local cron_identifier="# Pulse-Auto-Update [$SCRIPT_NAME]" # Using brackets
+    local cron_identifier="# Pulse-Auto-Update [install-pulse.sh]" # Using brackets
     local cron_exists=false
-    # Check if cron job exists for root user
-    if crontab -l -u root 2>/dev/null | grep -q "$cron_identifier"; then
+    # Escape potential regex characters for grep
+    local escaped_cron_identifier
+    escaped_cron_identifier=$(sed 's/[][\.*^$]/\&/g' <<< "$cron_identifier")
+
+    # Check if cron job exists for root user, anchored to start of line
+    if crontab -l -u root 2>/dev/null | grep -q "^${escaped_cron_identifier}"; then
         cron_exists=true
     fi
 
