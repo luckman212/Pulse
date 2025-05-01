@@ -69,7 +69,7 @@ print_warning() {
 }
 
 print_error() {
-  echo -e "\033[1;31m[ERROR]\033[0m $1" >&2
+  echo -e "\033[1;31m[ERROR]\033[0m $1 >&2
 }
 
 check_root() {
@@ -86,11 +86,13 @@ self_update_check() {
         return 0
     fi
 
-    # Check if curl and diff are available (should be after dependency install)
+    # ---> MODIFIED: Check dependencies *before* attempting update <---
     if ! command -v curl &> /dev/null || ! command -v diff &> /dev/null; then
-        print_warning "curl or diff not found. Cannot check for installer updates."
-        return 0
+        # Don't print warning here, it's expected if dependencies aren't installed yet
+        # print_warning "curl or diff not found. Cannot check for installer updates."
+        return 0 # Silently skip check if tools missing
     fi
+    # ---> END MODIFICATION <---
 
     print_info "Checking for updates to the installer script itself..."
     local temp_script="/tmp/${SCRIPT_NAME}.tmp"
@@ -1161,6 +1163,9 @@ case "$INSTALL_MODE" in
         exit 1
         ;;
     "install" | "update")
+        # ---> MOVED: Check for self-update FIRST (if possible) <---
+        self_update_check || print_warning "Installer self-check failed, proceeding anyway..."
+
         # Only install dependencies if installing or updating
         print_info "Proceeding with install/update. Installing prerequisites..."
         apt_update_upgrade || exit 1
@@ -1168,9 +1173,6 @@ case "$INSTALL_MODE" in
         setup_node || exit 1
         create_pulse_user || exit 1
         print_success "Prerequisites installed."
-
-        # ---> ADDED: Check for self-update AFTER dependencies are installed <---
-        self_update_check || print_warning "Installer self-check failed, continuing..."
 
         # Now perform the specific action
         if [ "$INSTALL_MODE" = "install" ]; then
