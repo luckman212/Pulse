@@ -94,8 +94,17 @@ print_dependency_info() {
     print_info "   (If missing, the script will *attempt* to install it"
     print_info "    using 'apt-get install jq' to enable self-updates.)"
     print_info "-----------------------------------------------------"
-    # Optional: Add a short pause or prompt?
-    # read -p "Press Enter to continue..." -n 1 -s
+    # --- NEW: Confirmation Prompt (Default Yes) ---
+    local confirm_proceed
+    # Prompt defaults to Yes [Y/n]
+    read -p "Do you want to proceed with the installation/update? [Y/n]: " confirm_proceed
+    # Exit only if user explicitly enters 'n' or 'N'
+    if [[ "$confirm_proceed" =~ ^[Nn]$ ]]; then
+        print_error "Operation aborted by user."
+        exit 1 # Use exit code 1 for aborted operations
+    fi
+    print_info "Proceeding..."
+    # --- END Confirmation Prompt ---
 }
 # --- END NEW FUNCTION ---
 
