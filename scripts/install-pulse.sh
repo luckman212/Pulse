@@ -85,7 +85,7 @@ self_update_check() {
     print_info "Entering self_update_check function..." # DEBUG
     # Only run check if interactive and script path was found
     if [ ! -t 0 ] || [ "$MODE_UPDATE" = true ] || [ -z "$SCRIPT_ABS_PATH" ]; then
-        print_info "Skipping self-update check (non-interactive, update mode, or no script path)." # DEBUG
+        print_info "Skipping self-update check: Non-interactive, update mode, or no script path." # DEBUG, removed parens
         return 0
     fi
 
