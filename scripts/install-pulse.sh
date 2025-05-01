@@ -169,6 +169,11 @@ self_update_check() {
             fi
             # Ensure script has Unix (LF) line endings after move
             sed -i 's/\r$//' "$SCRIPT_ABS_PATH"
+            # ---> DEBUG: Check hash AFTER sed < ---
+            local post_sed_hash
+            post_sed_hash=$( (cd "$PULSE_DIR" && git hash-object "scripts/install-pulse.sh" 2>/dev/null) )
+            print_info "[DEBUG] Git hash after sed: $post_sed_hash"
+            # ---> END DEBUG < ---
             print_success "Installer updated successfully to commit ${latest_remote_sha:0:7}."
             print_info "Re-executing with updated installer..."
             exec bash "$SCRIPT_ABS_PATH" "$@"
